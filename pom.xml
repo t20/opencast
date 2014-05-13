@@ -11,7 +11,7 @@
   <inceptionYear>2009</inceptionYear>
 
   <prerequisites>
-    <maven>2.0.6</maven>
+    <maven>3.0.4</maven>
   </prerequisites>
   <properties>
     <matterhorn.basedir>${basedir}</matterhorn.basedir>
@@ -765,6 +765,20 @@
     </profile>
 
     <profile>
+      <id>alternatives</id>
+      <activation>
+        <activeByDefault>false</activeByDefault>
+        <property>
+          <name>all</name>
+        </property>
+      </activation>
+      <modules>
+        <module>modules/matterhorn-inspection-service-ffmpeg</module>
+        <module>modules/matterhorn-dictionary-none</module>
+      </modules>
+    </profile>
+
+    <profile>
       <id>test</id>
       <activation>
         <activeByDefault>false</activeByDefault>
@@ -1026,6 +1040,7 @@
     <pluginManagement>
       <plugins>
         <!-- Fix eclipse (indigo) maven integration -->
+        <!-- See http://wiki.eclipse.org/M2E_plugin_execution_not_covered for more information -->
         <plugin>
           <groupId>org.eclipse.m2e</groupId>
           <artifactId>lifecycle-mapping</artifactId>
@@ -1048,11 +1063,12 @@
                 </pluginExecution>
                 <pluginExecution>
                   <pluginExecutionFilter>
-                    <groupId>org.codehaus.mojo</groupId>
-                    <artifactId>exec-maven-plugin</artifactId>
-                    <versionRange>[1.0.0,)</versionRange>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-pmd-plugin</artifactId>
+                    <versionRange>[3.0.0,)</versionRange>
                     <goals>
-                      <goal>exec</goal>
+                      <goal>pmd</goal>
+                      <goal>cpd</goal>
                     </goals>
                   </pluginExecutionFilter>
                   <action>
@@ -1306,6 +1322,12 @@
         <artifactId>ical4j</artifactId>
         <version>1.0-rc2-patched</version>
       </dependency>
+
+	    <dependency>
+	      <groupId>org.apache.servicemix.bundles</groupId>
+	      <artifactId>org.apache.servicemix.bundles.quartz</artifactId>
+	      <version>1.8.5_1</version>
+	    </dependency>
 
       <!-- OSGi -->
       <dependency>
