@@ -18,41 +18,39 @@
  * the License.
  *
  */
-
-package org.opencastproject.publication.youtube;
+package org.opencastproject.google;
 
 import org.junit.Test;
 
-import org.opencastproject.util.XProperties;
+import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
 
-public class YouTubeUtilsTest {
+/**
+ * @author John Crossman
+ */
+public class GoogleServicesFactoryTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void testGetWhenRequired() {
-    YouTubeUtils.get(new XProperties(), YouTubeKey.clientSecretsV3, true);
-  }
-
-  @Test(expected = IllegalArgumentException.class)
-  public void testGetWhenRequiredByDefault() {
-    YouTubeUtils.get(new XProperties(), YouTubeKey.clientSecretsV3);
+    GoogleUtils.get(new Properties(), GoogleKey.clientSecretsV3, true);
   }
 
   @Test
   public void testNull() {
-    assertNull(YouTubeUtils.get(new XProperties(), YouTubeKey.clientSecretsV3, false));
+    assertNull(GoogleUtils.get(new Properties(), GoogleKey.clientSecretsV3, false));
   }
 
   @Test
   public void testGet() {
-    final XProperties p = new XProperties();
     final String value = "value";
-    YouTubeUtils.put(p, YouTubeKey.clientSecretsV3, value);
-    assertEquals(value, YouTubeUtils.get(p, YouTubeKey.clientSecretsV3, true));
-    assertEquals(value, YouTubeUtils.get(p, YouTubeKey.clientSecretsV3));
-    assertEquals(value, YouTubeUtils.get(p, YouTubeKey.clientSecretsV3, false));
+    final String keyString = "org.opencastproject.publication.youtube." + GoogleKey.clientSecretsV3.name();
+    final Properties properties = new Properties();
+    properties.put(keyString, value);
+    assertEquals(value, GoogleUtils.get(properties, GoogleKey.clientSecretsV3, true));
+    assertEquals(value, GoogleUtils.get(properties, GoogleKey.clientSecretsV3, false));
+    assertEquals(value, GoogleUtils.get(properties, GoogleKey.clientSecretsV3, false));
   }
 
 }

@@ -19,8 +19,7 @@
  *
  */
 
-
-package org.opencastproject.publication.youtube.auth;
+package org.opencastproject.google.auth;
 
 import org.apache.commons.lang.builder.ToStringBuilder;
 import org.json.simple.JSONObject;
@@ -36,6 +35,8 @@ import java.util.List;
 /**
  * <code>ClientCredentials</code> class represents the set of parameters required to make an authorization
  * request.
+ *
+ * @author Fernando Alvarez
  */
 public final class ClientCredentials {
 

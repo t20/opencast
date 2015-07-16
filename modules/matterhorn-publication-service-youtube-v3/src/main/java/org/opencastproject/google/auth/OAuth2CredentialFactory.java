@@ -18,11 +18,11 @@
  * the License.
  *
  */
+package org.opencastproject.google.auth;
 
-package org.opencastproject.publication.youtube.auth;
-
+import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.auth.oauth2.StoredCredential;
-import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.util.BackOff;
 import com.google.api.client.util.store.DataStore;
 
 import java.io.IOException;
@@ -30,6 +30,9 @@ import java.io.IOException;
 /**
  * <code>OAuth2CredentialFactory</code> implementation is a factory class that returns
  * <code>GoogleCredential</code> objects.
+ *
+ * @author Fernando Alvarez
+ * @author John Crossman
  */
 public interface OAuth2CredentialFactory {
 
@@ -56,10 +59,12 @@ public interface OAuth2CredentialFactory {
    *          <code>ClientCredentials</code> object containing
    *          the parameters needed to find an existing or create a new instance
    *          of <code>GoogleCredential</code>
+   * @param backOff
+   *          retry strategy
    * @return Google-specific subclass of <code>Credential</code>
    * @throws IOException if the default data store is not available
    */
-  GoogleCredential getGoogleCredential(DataStore<StoredCredential> datastore, ClientCredentials authContext) throws IOException;
+  Credential getGoogleCredential(DataStore<StoredCredential> datastore, ClientCredentials authContext, BackOff backOff) throws IOException;
 
   /**
    * Returns a <code>GoogleCredential</code> from the default data store. If one
@@ -69,6 +74,6 @@ public interface OAuth2CredentialFactory {
    * @return Google-specific subclass of <code>Credential</code>
    * @throws IOException if the default data store is not available
    */
-  GoogleCredential getGoogleCredential(final ClientCredentials credentials) throws IOException;
+  Credential getGoogleCredential(ClientCredentials credentials, BackOff backOff) throws IOException;
 
 }

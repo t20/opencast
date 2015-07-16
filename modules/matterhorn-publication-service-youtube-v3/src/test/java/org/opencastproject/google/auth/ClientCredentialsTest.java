@@ -18,12 +18,10 @@
  * the License.
  *
  */
-
-package org.opencastproject.publication.youtube.auth;
+package org.opencastproject.google.auth;
 
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
-import org.opencastproject.publication.youtube.UnitTestUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -32,6 +30,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.fail;
 
+/**
+ * @author John Crossman
+ */
 public class ClientCredentialsTest {
 
   @Test
@@ -42,7 +43,7 @@ public class ClientCredentialsTest {
   @Test
   public void testParsingJSON() throws IOException, ParseException {
     final String clientId = "652137994117.apps.googleusercontent.com";
-    final File clientSecretsFile = UnitTestUtils.getMockClientSecretsFile(clientId);
+    final File clientSecretsFile = GoogleAuthTestUtils.getMockClientSecretsFile(clientId);
     try {
       final ClientCredentials cc = new ClientCredentials();
       cc.setClientSecrets(clientSecretsFile);

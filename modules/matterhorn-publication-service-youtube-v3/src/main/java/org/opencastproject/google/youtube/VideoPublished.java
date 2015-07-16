@@ -18,16 +18,29 @@
  * the License.
  *
  */
-
-package org.opencastproject.publication.youtube;
+package org.opencastproject.google.youtube;
 
 /**
- * Used to reference individual YouTube service configurations.
- *
- * @see com.google.api.client.googleapis.auth.oauth2.GoogleCredential
+ * @author John Crossman
  */
-public enum YouTubeKey {
+public class VideoPublished extends VideoMetadata {
 
-  credentialDatastore, scopes, clientSecretsV3, dataStore, keywords, defaultPlaylist, makeVideosPrivate, maxFieldLength,;
+  private final String videoId;
 
+  /**
+   * @param title may not be {@code null}.
+   * @param description may be {@code null}.
+   * @param youTubePrivacy may not be {@code null}.
+   * @param videoId may not be {@code null}.
+   * @param tags may be {@code null}.
+   */
+  public VideoPublished(final String videoId, final String title, final String description, final HasYouTubePrivacyStatus youTubePrivacy,
+          final String... tags) {
+    super(title, description, youTubePrivacy, tags);
+    this.videoId = videoId;
+  }
+
+  public String getVideoId() {
+    return videoId;
+  }
 }

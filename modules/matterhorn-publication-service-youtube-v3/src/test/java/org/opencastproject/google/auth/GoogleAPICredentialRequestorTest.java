@@ -18,14 +18,13 @@
  * the License.
  *
  */
-
-package org.opencastproject.publication.youtube.auth;
+package org.opencastproject.google.auth;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
+import com.google.api.client.util.BackOff;
 import com.google.api.client.util.store.DataStore;
 import org.json.simple.parser.ParseException;
 import org.junit.Test;
-import org.opencastproject.publication.youtube.UnitTestUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +34,9 @@ import static org.easymock.EasyMock.createMock;
 import static org.easymock.EasyMock.expect;
 import static org.easymock.EasyMock.replay;
 
+/**
+ * @author John Crossman
+ */
 public class GoogleAPICredentialRequestorTest {
 
   @Test(expected = IllegalArgumentException.class)
@@ -52,11 +54,13 @@ public class GoogleAPICredentialRequestorTest {
     final String clientId = "clientId";
     final String credentialDataStore = "credentialDataStore";
     final String dataStoreDirectory = "dataStoreDirectory";
-    final File clientSecrets = UnitTestUtils.getMockClientSecretsFile(clientId);
+    final File clientSecrets = GoogleAuthTestUtils.getMockClientSecretsFile(clientId);
     try {
       final OAuth2CredentialFactory credentialFactory = createMock(OAuth2CredentialFactory.class);
       expect(credentialFactory.getDataStore(credentialDataStore, dataStoreDirectory)).andReturn(createMock(DataStore.class)).once();
-      expect(credentialFactory.getGoogleCredential(anyObject(DataStore.class), anyObject(ClientCredentials.class))).andReturn(new GoogleCredential()).once();
+      expect(credentialFactory.getGoogleCredential(anyObject(DataStore.class), anyObject(ClientCredentials.class),
+              anyObject(BackOff.class)))
+              .andReturn(new GoogleCredential()).once();
       replay(credentialFactory);
       GoogleAPICredentialRequestor.setCredentialFactory(credentialFactory);
       GoogleAPICredentialRequestor.main(new String[] {clientSecrets.getAbsolutePath(), credentialDataStore, dataStoreDirectory});

@@ -14,13 +14,26 @@
   <properties>
     <matterhorn.basedir>${project.basedir}/../..</matterhorn.basedir>
     <checkstyle.skip>false</checkstyle.skip>
-    <project.youtube.version>v3-rev92-1.17.0-rc</project.youtube.version>
-    <project.http.version>1.17.0-rc</project.http.version>
-    <project.oauth.version>1.17.0-rc</project.oauth.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <google.youtube.version>v3-rev130-1.19.1</google.youtube.version>
+    <google.http-client.version>1.19.0</google.http-client.version>
+    <google.oauth.version>1.19.0</google.oauth.version>
+    <google.api-services-plus.version>v1-rev215-1.19.1</google.api-services-plus.version>
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>org.opencastproject</groupId>
+      <artifactId>matterhorn-series-service-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.opencastproject</groupId>
+      <artifactId>matterhorn-workspace-api</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.opencastproject</groupId>
       <artifactId>matterhorn-publication-service-api</artifactId>
@@ -80,8 +93,7 @@
       <artifactId>slf4j-api</artifactId>
     </dependency>
 
-    <!-- YouTube Data V3 support -->
-
+    <!-- Google / YouTube -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-core</artifactId>
@@ -94,34 +106,39 @@
       <version>1.9.4</version>
     </dependency>
 
-   <dependency>
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+    </dependency>
+
+    <dependency>
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-plus</artifactId>
-      <version>v1-rev99-1.17.0-rc</version>
+      <version>${google.api-services-plus.version}</version>
     </dependency>
 
     <dependency>
       <groupId>com.google.apis</groupId>
       <artifactId>google-api-services-youtube</artifactId>
-      <version>${project.youtube.version}</version>
+      <version>${google.youtube.version}</version>
     </dependency>
 
     <dependency>
       <groupId>com.google.http-client</groupId>
       <artifactId>google-http-client-jackson2</artifactId>
-      <version>${project.http.version}</version>
+      <version>${google.http-client.version}</version>
     </dependency>
 
     <dependency>
       <groupId>com.google.oauth-client</groupId>
       <artifactId>google-oauth-client-jetty</artifactId>
-      <version>${project.oauth.version}</version>
+      <version>${google.oauth.version}</version>
     </dependency>
 
     <dependency>
       <groupId>com.google.oauth-client</groupId>
       <artifactId>google-oauth-client-java6</artifactId>
-      <version>${project.oauth.version}</version>
+      <version>${google.oauth.version}</version>
     </dependency>
 
     <dependency>

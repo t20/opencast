@@ -18,15 +18,19 @@
  * the License.
  *
  */
-
 package org.opencastproject.publication.youtube;
 
-import com.google.api.services.youtube.model.Playlist;
-import com.google.api.services.youtube.model.SearchResult;
-import com.google.api.services.youtube.model.Video;
-import org.apache.commons.lang.StringUtils;
-import org.apache.commons.lang.builder.ToStringBuilder;
-import org.apache.commons.lang.builder.ToStringStyle;
+import org.opencastproject.google.GoogleServicesFactory;
+import org.opencastproject.google.GoogleUtils;
+import org.opencastproject.google.youtube.RecordingAccessRights;
+import org.opencastproject.google.youtube.UploadProgressListener;
+import org.opencastproject.google.youtube.VideoMetadata;
+import org.opencastproject.google.youtube.VideoUpload;
+import org.opencastproject.google.youtube.YouTubeAPIVersion3Service;
+import org.opencastproject.google.GoogleKey;
+import org.opencastproject.google.youtube.YouTubeAPIVersion3ServiceImpl;
+import org.opencastproject.google.youtube.YouTubePlaylist;
+import org.opencastproject.google.youtube.YouTubeWorkspace;
 import org.opencastproject.job.api.AbstractJobProducer;
 import org.opencastproject.job.api.Job;
 import org.opencastproject.mediapackage.MediaPackage;
@@ -36,24 +40,37 @@ import org.opencastproject.mediapackage.MediaPackageParser;
 import org.opencastproject.mediapackage.Publication;
 import org.opencastproject.mediapackage.PublicationImpl;
 import org.opencastproject.mediapackage.Track;
+import org.opencastproject.metadata.dublincore.DublinCore;
+import org.opencastproject.metadata.dublincore.DublinCoreCatalog;
+import org.opencastproject.metadata.dublincore.DublinCoreValue;
 import org.opencastproject.publication.api.PublicationException;
 import org.opencastproject.publication.api.YouTubePublicationService;
-import org.opencastproject.publication.youtube.auth.ClientCredentials;
 import org.opencastproject.security.api.OrganizationDirectoryService;
 import org.opencastproject.security.api.SecurityService;
+import org.opencastproject.security.api.UnauthorizedException;
 import org.opencastproject.security.api.UserDirectoryService;
+import org.opencastproject.series.api.SeriesException;
+import org.opencastproject.series.api.SeriesService;
 import org.opencastproject.serviceregistry.api.ServiceRegistry;
 import org.opencastproject.serviceregistry.api.ServiceRegistryException;
 import org.opencastproject.util.MimeTypes;
-import org.opencastproject.util.XProperties;
+import org.opencastproject.util.NotFoundException;
 import org.opencastproject.workspace.api.Workspace;
+
+import com.google.api.services.youtube.model.Playlist;
+import com.google.api.services.youtube.model.Video;
+
+import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang.builder.ToStringBuilder;
+import org.apache.commons.lang.builder.ToStringStyle;
 import org.osgi.service.cm.ConfigurationException;
 import org.osgi.service.cm.ManagedService;
-import org.osgi.service.component.ComponentContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -74,7 +91,7 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
   private static final String CHANNEL_NAME = "youtube";
 
   /** logger instance */
-  private static final Logger logger = LoggerFactory.getLogger(YouTubeV3PublicationServiceImpl.class);
+  private final Logger logger = LoggerFactory.getLogger(this.getClass());
 
   /** The mime-type of the published element */
   private static final String MIME_TYPE = "text/html";
@@ -86,6 +103,10 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
 
   /** workspace instance */
   protected Workspace workspace = null;
+
+  /** workspace instance */
+  protected YouTubeWorkspace youTubeWorkspace = null;
+
 
   /** The remote service registry */
   protected ServiceRegistry serviceRegistry = null;
@@ -100,73 +121,30 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
   private SecurityService securityService;
 
   /** Youtube configuration instance */
-  private final YouTubeAPIVersion3Service youTubeService;
+  private YouTubeAPIVersion3Service youTubeService;
+
+  /** Series metadata */
+  private SeriesService seriesService = null;
 
   /**
-   * The default playlist to publish to, in case there is not enough information in the mediapackage to find a playlist
+   * Create new instance.
    */
-  private String defaultPlaylist;
-
-  private boolean makeVideosPrivate;
-
-  private String[] tags;
-
-  private XProperties properties = new XProperties();
-
-  /**
-   * The maximum length of a Recording or Series title.
-   * A value of zero will be treated as no limit
-   */
-  private int maxFieldLength;
-
-  /**
-   * Creates a new instance of the youtube publication service.
-   */
-  YouTubeV3PublicationServiceImpl(final YouTubeAPIVersion3Service youTubeService) throws Exception {
+  public YouTubeV3PublicationServiceImpl() {
     super(JOB_TYPE);
-    this.youTubeService = youTubeService;
-  }
-
-  /**
-   * Creates a new instance of the youtube publication service.
-   */
-  public YouTubeV3PublicationServiceImpl() throws Exception {
-    this(new YouTubeAPIVersion3ServiceImpl());
-  }
-
-  /**
-   * Called when service activates. Defined in OSGi resource file.
-   */
-  public synchronized void activate(final ComponentContext cc) {
-    properties.setBundleContext(cc.getBundleContext());
+    logger.debug("Instantiated " + this.getClass().getSimpleName());
   }
 
   @Override
-  public void updated(final Dictionary props) throws ConfigurationException {
-    properties.merge(props);
-
-    final String dataStore = YouTubeUtils.get(properties, YouTubeKey.credentialDatastore);
-
+  public void updated(final Dictionary dictionary) throws ConfigurationException {
+    logger.info("Updating configuration for " + this.getClass().getSimpleName());
+    youTubeWorkspace.setYouTubeVideoTags(StringUtils.split(GoogleUtils.get(dictionary, GoogleKey.keywords, true), ','));
     try {
-      final ClientCredentials clientCredentials = new ClientCredentials();
-      clientCredentials.setCredentialDatastore(dataStore);
-      final String path = YouTubeUtils.get(properties, YouTubeKey.clientSecretsV3);
-      File secretsFile = new File(path);
-      if (secretsFile.exists() && !secretsFile.isDirectory()) {
-        clientCredentials.setClientSecrets(secretsFile);
-        clientCredentials.setDataStoreDirectory(YouTubeUtils.get(properties, YouTubeKey.dataStore));
-        //
-        youTubeService.initialize(clientCredentials);
-        //
-        tags = StringUtils.split(YouTubeUtils.get(properties, YouTubeKey.keywords), ',');
-        defaultPlaylist = YouTubeUtils.get(properties, YouTubeKey.defaultPlaylist);
-        makeVideosPrivate = StringUtils.containsIgnoreCase(YouTubeUtils.get(properties, YouTubeKey.makeVideosPrivate), "true");
-        defaultMaxFieldLength(YouTubeUtils.get(properties, YouTubeKey.maxFieldLength, false));
-      } else {
-        logger.warn("Client information file does not exist: " + path);
-      }
-    } catch (final Exception e) {
-      throw new ConfigurationException("Failed to load YouTube v3 properties", dataStore, e);
+      final GoogleServicesFactory servicesFactory = new GoogleServicesFactory(GoogleUtils.toProperties(dictionary));
+      final YouTubeAPIVersion3Service service = new YouTubeAPIVersion3ServiceImpl();
+      service.initialize(servicesFactory);
+      setYouTubeService(service);
+    } catch (final IOException e) {
+      throw new ConfigurationException("Failed to init YouTube service", getJobType(), e);
     }
   }
 
@@ -182,7 +160,6 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
     } else {
       throw new IllegalArgumentException("Mediapackage does not contain track " + track.getIdentifier());
     }
-
   }
 
   /**
@@ -215,38 +192,40 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
       throw new IllegalArgumentException("Mediapackage element cannot be XML");
     }
     try {
-      // create context strategy for publication
-      final YouTubePublicationAdapter c = new YouTubePublicationAdapter(mediaPackage, workspace);
-      final File file = workspace.get(element.getURI());
-      final String episodeName = c.getEpisodeName();
-      final UploadProgressListener operationProgressListener = new UploadProgressListener(mediaPackage, file);
-      final String privacyStatus = makeVideosPrivate ? "private" : "public";
-      final VideoUpload videoUpload = new VideoUpload(truncateTitleToMaxFieldLength(episodeName, false), c.getEpisodeDescription(), privacyStatus, file, operationProgressListener, tags);
-      final Video video = youTubeService.addVideoToMyChannel(videoUpload);
+      // Publication
+      final File file = getFileWithURI(element);
+      if (file == null) {
+        job.setStatus(Job.Status.FAILED);
+        return null;
+      }
+      final VideoMetadata videoMetadata = youTubeWorkspace.getVideoMetadata(mediaPackage, youTubeWorkspace.getYouTubeVideoTags());
+      final VideoUpload videoUpload = new VideoUpload(videoMetadata, file);
+      final UploadProgressListener progressListener = new UploadProgressListener(videoMetadata.getTitle(), mediaPackage.getSeriesTitle(), file);
+      final Video video = youTubeService.addVideoToMyChannel(videoUpload, progressListener);
       final int timeoutMinutes = 60;
       final long startUploadMilliseconds = new Date().getTime();
-      while (!operationProgressListener.isComplete()) {
+      while (!progressListener.isComplete()) {
         Thread.sleep(POLL_MILLISECONDS);
         final long howLongWaitingMinutes = (new Date().getTime() - startUploadMilliseconds) / 60000;
         if (howLongWaitingMinutes > timeoutMinutes) {
-          throw new PublicationException("Upload to YouTube exceeded " + timeoutMinutes + " minutes for episode " + episodeName);
+          throw new PublicationException("Upload to YouTube exceeded " + timeoutMinutes + " minutes for episode " + videoMetadata.getTitle());
         }
       }
-      String playlistName = StringUtils.trimToNull(truncateTitleToMaxFieldLength(mediaPackage.getSeriesTitle(), true));
-      playlistName = (playlistName == null) ? this.defaultPlaylist : playlistName;
-      final Playlist playlist;
-      final Playlist existingPlaylist = youTubeService.getMyPlaylistByTitle(playlistName);
-      if (existingPlaylist == null) {
-        playlist = youTubeService.createPlaylist(playlistName, c.getContextDescription(), mediaPackage.getSeries());
-      } else {
-        playlist = existingPlaylist;
+      final Integer duration = GoogleUtils.getDurationSeconds(video);
+      if (duration <= 0) {
+        logger.warn("YouTube (sometimes unreliable) tell us that " + video.getId() + " has zero duration.");
       }
-      youTubeService.addPlaylistItem(playlist.getId(), video.getId());
-      // Create new publication element
+      if (video.getId() == null) {
+        throw new IllegalStateException("YouTube video object has null id.");
+      }
+      final String seriesId = mediaPackage.getSeries();
+      if (StringUtils.isNotBlank(seriesId)) {
+        addPlaylistItem(video, seriesId, youTubeWorkspace.getYouTubeVideoTags());
+      }
       final URL url = new URL("http://www.youtube.com/watch?v=" + video.getId());
       return PublicationImpl.publication(UUID.randomUUID().toString(), CHANNEL_NAME, url.toURI(), MimeTypes.parseMimeType(MIME_TYPE));
-    } catch (Exception e) {
-      logger.error("failed publishing to Youtube", e);
+    } catch (final Exception e) {
+      logger.error("Failed publishing to Youtube", e);
       logger.warn("Error publishing {}, {}", element, e.getMessage());
       if (e instanceof PublicationException) {
         throw (PublicationException) e;
@@ -256,14 +235,63 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
     }
   }
 
+  private void addPlaylistItem(final Video video, final String seriesId, final String[] youTubeVideoTags)
+          throws IOException, SeriesException, UnauthorizedException, NotFoundException {
+    final DublinCoreCatalog series = seriesService.getSeries(seriesId);
+    final String youTubePlaylistId = extractYouTubePlaylistId(series);
+    // The YouTube playlist id in Matterhorn metadata might be null OR invalid. We handle both cases below.
+    Playlist playlist = youTubePlaylistId == null ? null : youTubeService.getPlaylistById(youTubePlaylistId);
+    playlist = playlist == null ? createYouTubePlaylist(series, youTubeVideoTags) : playlist;
+    if (playlist != null) {
+      youTubeService.addPlaylistItem(playlist.getId(), video.getId());
+    }
+  }
+
+  private Playlist createYouTubePlaylist(final DublinCoreCatalog series, final String[] youTubeVideoTags)
+          throws SeriesException, UnauthorizedException {
+    final String seriesTitle = series.getFirst(DublinCore.PROPERTY_TITLE);
+    final String description = series.getFirst(DublinCore.PROPERTY_DESCRIPTION);
+    final String seriesId = series.getFirst(DublinCore.PROPERTY_IDENTIFIER);
+    final String propertyAccessRights = series.hasValue(DublinCore.PROPERTY_ACCESS_RIGHTS)
+            ? series.getFirst(DublinCore.PROPERTY_ACCESS_RIGHTS)
+            : RecordingAccessRights.studentsOnlyAccessRights.name();
+    final RecordingAccessRights recordingAccessRights = GoogleUtils.findByPropertyAccessRights(propertyAccessRights);
+    final YouTubePlaylist youTubePlaylist = new YouTubePlaylist(null, seriesTitle, description,
+            recordingAccessRights.getYouTubePrivacyStatus(), seriesId, youTubeVideoTags);
+    final Playlist playlist;
+    try {
+      playlist = youTubeService.createPlaylist(youTubePlaylist);
+      final String publisher = PublisherNamespace.YOUTUBE.encodePlayListAsPublisherUrn(playlist.getId());
+      series.add(DublinCore.PROPERTY_PUBLISHER, DublinCoreValue.mk(publisher));
+      seriesService.updateSeries(series);
+      logger.debug("Created YouTube playlist {} for series {}", playlist.getId(), seriesId);
+    } catch (final IOException e) {
+      throw new SeriesException("Failed create YouTube playlist for series " + seriesTitle + " (" + seriesId + ')', e);
+    }
+    return playlist;
+  }
+
+  private File getFileWithURI(final MediaPackageElement element) {
+    File file = null;
+    final URI uri = element.getURI();
+    try {
+      file = workspace.get(uri);
+    } catch (final Exception e) {
+      logger.error("Unable to find or open: " + uri, e);
+      file = null;
+    } finally {
+      file = file != null && file.exists() ? file : null;
+    }
+    return file;
+  }
+
   @Override
   public Job retract(final MediaPackage mediaPackage) throws PublicationException {
-    System.out.println(org.mortbay.jetty.Handler.class);
     if (mediaPackage == null) {
       throw new IllegalArgumentException("Mediapackage must be specified");
     }
     try {
-      List<String> arguments = new ArrayList<String>();
+      final List<String> arguments = new ArrayList<String>();
       arguments.add(MediaPackageParser.getAsXml(mediaPackage));
       return serviceRegistry.createJob(JOB_TYPE, Operation.Retract.toString(), arguments);
     } catch (ServiceRegistryException e) {
@@ -287,34 +315,27 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
     for (Publication publication : mediaPackage.getPublications()) {
       if (CHANNEL_NAME.equals(publication.getChannel())) {
         youtube = publication;
-        break;
       }
     }
     if (youtube == null) {
       return null;
     }
-    final YouTubePublicationAdapter contextStrategy = new YouTubePublicationAdapter(mediaPackage, workspace);
-    final String episodeName = contextStrategy.getEpisodeName();
     try {
-      retract(mediaPackage.getSeriesTitle(), episodeName);
+      // Make sure video exists at YouTube prior to delete.
+      final String videoId = youTubeWorkspace.getVideoId(mediaPackage);
+      final DublinCoreCatalog series = seriesService.getSeries(mediaPackage.getSeries());
+      final String youTubePlaylistId = series == null ? null : extractYouTubePlaylistId(series);
+      if (youTubePlaylistId == null) {
+        youTubeService.deleteVideo(videoId);
+      } else {
+        youTubeService.deleteVideo(videoId, youTubePlaylistId);
+      }
     } catch (final Exception e) {
       logger.error("Failure retracting YouTube media {}", e.getMessage());
       throw new PublicationException("YouTube media retract failed on job: "
           + ToStringBuilder.reflectionToString(job, ToStringStyle.MULTI_LINE_STYLE), e);
     }
     return youtube;
-  }
-
-  private void retract(final String seriesTitle, final String episodeName) throws Exception {
-    final List<SearchResult> items = youTubeService.searchMyVideos(truncateTitleToMaxFieldLength(episodeName, false), null, 1).getItems();
-    if (!items.isEmpty()) {
-      final String videoId = items.get(0).getId().getVideoId();
-      if (seriesTitle != null) {
-        final Playlist playlist = youTubeService.getMyPlaylistByTitle(truncateTitleToMaxFieldLength(seriesTitle, true));
-        youTubeService.removeVideoFromPlaylist(playlist.getId(), videoId);
-      }
-      youTubeService.removeMyVideo(videoId);
-    }
   }
 
   /**
@@ -327,18 +348,20 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
     Operation op = null;
     try {
       op = Operation.valueOf(job.getOperation());
-      List<String> arguments = job.getArguments();
-      MediaPackage mediapackage = MediaPackageParser.getFromXml(arguments.get(0));
+      final List<String> arguments = job.getArguments();
+      final MediaPackage mediapackage = MediaPackageParser.getFromXml(arguments.get(0));
+      final Publication publication;
       switch (op) {
         case Publish:
-          Publication publicationElement = publish(job, mediapackage, arguments.get(1));
-          return (publicationElement == null) ? null : MediaPackageElementParser.getAsXml(publicationElement);
+          publication = publish(job, mediapackage, arguments.get(1));
+          break;
         case Retract:
-          Publication retractedElement = retract(job, mediapackage);
-          return (retractedElement == null) ? null : MediaPackageElementParser.getAsXml(retractedElement);
+          publication = retract(job, mediapackage);
+          break;
         default:
           throw new IllegalStateException("Don't know how to handle operation '" + job.getOperation() + "'");
       }
+      return (publication == null) ? null : MediaPackageElementParser.getAsXml(publication);
     } catch (final IllegalArgumentException e) {
       throw new ServiceRegistryException("This service can't handle operations of type '" + op + "'", e);
     } catch (final IndexOutOfBoundsException e) {
@@ -348,14 +371,37 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
     }
   }
 
+  String extractYouTubePlaylistId(final DublinCoreCatalog seriesCatalog) {
+    final PublisherNamespace namespace = PublisherNamespace.YOUTUBE;
+    final String publisher = getPublisher(namespace, seriesCatalog);
+    final String value = StringUtils.trimToNull(publisher == null
+            ? null
+            : namespace.parsePlayListFromPublisherUrn(publisher));
+    return value == null || StringUtils.equalsIgnoreCase(value, "null") ? null : value;
+  }
+
+  private String getPublisher(final PublisherNamespace namespace, final DublinCoreCatalog catalog) {
+    String publisher = null;
+    final List<DublinCoreValue> publisherList = catalog == null ? null : catalog.get(DublinCore.PROPERTY_PUBLISHER);
+    if (publisherList != null) {
+      for (final DublinCoreValue value : publisherList) {
+        if (namespace.isPublisher(value.getValue())) {
+          publisher = value.getValue();
+        }
+      }
+    }
+    return publisher;
+  }
+
   /**
    * Callback for the OSGi environment to set the workspace reference.
    *
    * @param workspace
    *          the workspace
    */
-  protected void setWorkspace(Workspace workspace) {
+  protected void setWorkspace(final Workspace workspace) {
     this.workspace = workspace;
+    this.youTubeWorkspace = new YouTubeWorkspace(workspace);
   }
 
   /**
@@ -438,34 +484,40 @@ public class YouTubeV3PublicationServiceImpl extends AbstractJobProducer impleme
     return organizationDirectoryService;
   }
 
-  boolean isMaxFieldLengthSet() {
-    return maxFieldLength != 0;
+  public void setSeriesService(final SeriesService seriesService) {
+    this.seriesService = seriesService;
   }
 
-  private String truncateTitleToMaxFieldLength(final String title, final boolean tolerateNull) {
-    if (StringUtils.isBlank(title) && !tolerateNull) {
-      throw new IllegalArgumentException("Title fields cannot be null, empty, or whitespace");
-    }
-    if (isMaxFieldLengthSet() && (title != null)) {
-      return StringUtils.left(title, maxFieldLength);
-    } else {
-      return title;
-    }
+  public void setYouTubeService(YouTubeAPIVersion3Service youTubeService) {
+    this.youTubeService = youTubeService;
   }
 
-  private void defaultMaxFieldLength(String maxFieldLength) {
-    if (StringUtils.isBlank(maxFieldLength)) {
-      this.maxFieldLength = 0;
-    } else {
-      try {
-        this.maxFieldLength = Integer.parseInt(maxFieldLength);
-      } catch (NumberFormatException e) {
-        throw new IllegalArgumentException("maxFieldLength must be an integer");
-      }
-      if (this.maxFieldLength <= 0) {
-        throw new IllegalArgumentException("maxFieldLength must be greater than zero");
-      }
+  private enum PublisherNamespace {
+
+    YOUTUBE("urn:youtube:com:playlistId:");
+
+    private String urn;
+
+    PublisherNamespace(final String urn) {
+      this.urn = urn;
     }
+
+    public String encodePlayListAsPublisherUrn(final String playlistId) {
+      if (playlistId == null) {
+        throw new IllegalStateException("YouTube playlist object has null id.");
+      }
+      return urn + playlistId;
+    }
+
+    public String parsePlayListFromPublisherUrn(final String encodedPlayListId) {
+      final String trimmed = StringUtils.trimToNull(encodedPlayListId);
+      return trimmed == null ? null : StringUtils.remove(trimmed, urn);
+    }
+
+    public boolean isPublisher(final String encodedPlayListId) {
+      return StringUtils.startsWith(encodedPlayListId, urn);
+    }
+
   }
 
 }

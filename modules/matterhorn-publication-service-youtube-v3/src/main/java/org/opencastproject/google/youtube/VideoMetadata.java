@@ -18,41 +18,28 @@
  * the License.
  *
  */
-
-package org.opencastproject.publication.youtube;
-
-import com.google.api.client.googleapis.media.MediaHttpUploaderProgressListener;
-
-import java.io.File;
+package org.opencastproject.google.youtube;
 
 /**
- * Represents a YouTube video.
- *
- * @see com.google.api.services.youtube.model.Video
+ * @author John Crossman
  */
-public class VideoUpload {
+public class VideoMetadata {
 
   private final String title;
   private final String description;
-  private final String privacyStatus;
-  private final File videoFile;
-  private final MediaHttpUploaderProgressListener progressListener;
+  private final HasYouTubePrivacyStatus youTubePrivacy;
   private final String[] tags;
 
   /**
    * @param title may not be {@code null}.
    * @param description may be {@code null}.
-   * @param privacyStatus may not be {@code null}.
-   * @param videoFile may not be {@code null}.
-   * @param progressListener may be {@code null}.
+   * @param youTubePrivacy may not be {@code null}.
    * @param tags may be {@code null}.
    */
-  public VideoUpload(final String title, final String description, final String privacyStatus, final File videoFile, final MediaHttpUploaderProgressListener progressListener, final String... tags) {
+  public VideoMetadata(final String title, final String description, final HasYouTubePrivacyStatus youTubePrivacy, final String... tags) {
     this.title = title;
     this.description = description;
-    this.privacyStatus = privacyStatus;
-    this.videoFile = videoFile;
-    this.progressListener = progressListener;
+    this.youTubePrivacy = youTubePrivacy;
     this.tags = tags;
   }
 
@@ -76,24 +63,8 @@ public class VideoUpload {
    * @see com.google.api.services.youtube.model.VideoStatus#setPrivacyStatus(String)
    * @return will not be {@code null}
    */
-  public String getPrivacyStatus() {
-    return privacyStatus;
-  }
-
-  /**
-   * @see com.google.api.services.youtube.model.Video
-   * @return will not be {@code null}
-   */
-  public File getVideoFile() {
-    return videoFile;
-  }
-
-  /**
-   * Real-time updates of upload status.
-   * @return may be {@code null}
-   */
-  public MediaHttpUploaderProgressListener getProgressListener() {
-    return progressListener;
+  public HasYouTubePrivacyStatus getYouTubePrivacy() {
+    return youTubePrivacy;
   }
 
   /**
@@ -103,4 +74,5 @@ public class VideoUpload {
   public String[] getTags() {
     return tags;
   }
+
 }

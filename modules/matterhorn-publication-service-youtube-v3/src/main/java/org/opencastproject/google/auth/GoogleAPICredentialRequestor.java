@@ -18,13 +18,13 @@
  * the License.
  *
  */
-
-
-package org.opencastproject.publication.youtube.auth;
+package org.opencastproject.google.auth;
 
 import com.google.api.client.auth.oauth2.StoredCredential;
 import com.google.api.client.util.store.DataStore;
 import org.json.simple.parser.ParseException;
+import org.opencastproject.google.GoogleUtils;
+import org.opencastproject.google.StagedBackOff;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +33,8 @@ import java.io.IOException;
  * <code>GoogleAPICredentialRequestor</code> obtains credentials from Google
  * and persists them in a data store on the local file system for later use
  * when invoking the Google Data API V3 to upload a file to YouTube.
+ *
+ * @author Fernando Alvarez
  */
 public final class GoogleAPICredentialRequestor {
 
@@ -62,7 +64,8 @@ public final class GoogleAPICredentialRequestor {
     if (size != 3) {
       throw new IllegalArgumentException('\n' + "[ERROR] Wrong number of arguments: " + size + '\n');
     } else {
-      registerOAuth2Credential(new File(args[0]), args[1], args[2]);
+      final String retryPolicy = "First failure:0:0:1,Second failure:900000:0:1";
+      registerOAuth2Credential(new File(args[0]), args[1], args[2], GoogleUtils.getStagedBackOff(retryPolicy));
     }
   }
 
@@ -74,15 +77,16 @@ public final class GoogleAPICredentialRequestor {
    * @throws ParseException when file is not JSON
    */
   private static void registerOAuth2Credential(final File clientSecrets, final String credentialDataStore,
-                                               final String dataStoreDirectory) throws IOException, ParseException {
+                                               final String dataStoreDirectory, final StagedBackOff backOff) throws IOException, ParseException {
     if (clientSecrets.exists()) {
       final ClientCredentials c = new ClientCredentials();
       c.setClientSecrets(clientSecrets);
       c.setCredentialDatastore(credentialDataStore);
       c.setDataStoreDirectory(dataStoreDirectory);
       final OAuth2CredentialFactory factory = (credentialFactory == null) ? new OAuth2CredentialFactoryImpl() : credentialFactory;
-      final DataStore<StoredCredential> dataStore = factory.getDataStore(c.getCredentialDatastore(), c.getDataStoreDirectory());
-      factory.getGoogleCredential(dataStore, c);
+      final DataStore<StoredCredential> dataStore = factory.getDataStore(c.getCredentialDatastore(),
+              c.getDataStoreDirectory());
+      factory.getGoogleCredential(dataStore, c, backOff);
     } else {
       throw new IllegalArgumentException("The client-secrets file (YouTube OAuth) was not found: " + clientSecrets.getAbsolutePath());
     }

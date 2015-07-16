@@ -18,10 +18,8 @@
  * the License.
  *
  */
+package org.opencastproject.google.youtube;
 
-package org.opencastproject.publication.youtube;
-
-import org.opencastproject.mediapackage.MediaPackage;
 import com.google.api.client.googleapis.media.MediaHttpUploader;
 import com.google.api.client.googleapis.media.MediaHttpUploaderProgressListener;
 import org.slf4j.Logger;
@@ -32,22 +30,27 @@ import java.io.IOException;
 
 /**
  * Log progress of a YouTube video upload.
+ *
+ * @author John Crossman
  */
 public class UploadProgressListener implements MediaHttpUploaderProgressListener {
 
   private final Logger logger = LoggerFactory.getLogger(this.getClass());
   private final File file;
-  private final MediaPackage mediaPackage;
+  private final String episodeName;
+  private final String seriesTitle;
   private boolean complete;
 
   /**
-   * @param mediaPackage may not be {@code null}
+   * @param episodeName may not be {@code null}
+   * @param seriesTitle may be {@code null}
    * @param file may not be {@code null}
    */
-  public UploadProgressListener(final MediaPackage mediaPackage, final File file) {
+  public UploadProgressListener(final String episodeName, final String seriesTitle, final File file) {
     this.file = file;
     complete = false;
-    this.mediaPackage = mediaPackage;
+    this.episodeName = episodeName;
+    this.seriesTitle = seriesTitle;
   }
 
   @Override
@@ -56,11 +59,11 @@ public class UploadProgressListener implements MediaHttpUploaderProgressListener
     final String describeProgress;
     switch (uploadState) {
       case INITIATION_STARTED:
-        describeProgress = "Initiating YouTube publish";
+        describeProgress = "Initiating YouTube publish with chunk size = " + uploader.getChunkSize();
         break;
       case INITIATION_COMPLETE:
       case MEDIA_IN_PROGRESS:
-        final String percentComplete = "%" + uploader.getProgress() * 100 + " complete";
+        final String percentComplete = uploader.getProgress() * 100 + " % complete";
         describeProgress = "Uploading " + file.getAbsolutePath() + " to YouTube (" + percentComplete + ")";
         break;
       case NOT_STARTED:
@@ -73,7 +76,7 @@ public class UploadProgressListener implements MediaHttpUploaderProgressListener
       default:
         describeProgress = "Warning: No formal description for upload state: " + uploadState;
     }
-    logger.info(describeProgress + "(MediaPackage Identifier: " + mediaPackage.getIdentifier().toString() + ')');
+    logger.info(describeProgress + " (Episode name: " + episodeName + "; Series title: " + seriesTitle + ')');
   }
 
   public boolean isComplete() {

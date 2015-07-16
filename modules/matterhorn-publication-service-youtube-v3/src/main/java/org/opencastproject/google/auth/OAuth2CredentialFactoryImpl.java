@@ -18,9 +18,7 @@
  * the License.
  *
  */
-
-
-package org.opencastproject.publication.youtube.auth;
+package org.opencastproject.google.auth;
 
 import com.google.api.client.auth.oauth2.Credential;
 import com.google.api.client.auth.oauth2.StoredCredential;
@@ -31,6 +29,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
 import com.google.api.client.googleapis.auth.oauth2.GoogleCredential;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.util.BackOff;
 import com.google.api.client.util.store.DataStore;
 import com.google.api.client.util.store.FileDataStoreFactory;
 import org.slf4j.Logger;
@@ -43,6 +42,8 @@ import java.text.MessageFormat;
 
 /**
  * @see com.google.api.client.googleapis.auth.oauth2.GoogleCredential
+ * @author Fernando Alvarez
+ * @author John Crossman
  */
 public final class OAuth2CredentialFactoryImpl implements OAuth2CredentialFactory {
 
@@ -52,11 +53,11 @@ public final class OAuth2CredentialFactoryImpl implements OAuth2CredentialFactor
   }
 
   @Override
-  public GoogleCredential getGoogleCredential(final ClientCredentials credentials) throws IOException {
+  public Credential getGoogleCredential(final ClientCredentials credentials, final BackOff backOff) throws IOException {
     // Use the default which is file-based; name and location are configurable
-    final DataStore<StoredCredential> datastore = getDataStore(credentials.getCredentialDatastore(),
-        credentials.getDataStoreDirectory());
-    return getGoogleCredential(datastore, credentials);
+    final DataStore<StoredCredential> dataStore =
+            getDataStore(credentials.getCredentialDatastore(), credentials.getDataStoreDirectory());
+    return getGoogleCredential(dataStore, credentials, backOff);
   }
 
   @Override
@@ -64,10 +65,9 @@ public final class OAuth2CredentialFactoryImpl implements OAuth2CredentialFactor
     return new FileDataStoreFactory(new File(dataStoreDirectory)).getDataStore(id);
   }
 
-  @Override
-  public GoogleCredential getGoogleCredential(final DataStore<StoredCredential> datastore, final ClientCredentials authContext)
-          throws IOException {
-    final GoogleCredential gCred;
+  public Credential getGoogleCredential(final DataStore<StoredCredential> datastore,
+          final ClientCredentials authContext, final BackOff backOff) throws IOException {
+    final Credential credential;
     final LocalServerReceiver localReceiver = new LocalServerReceiver();
     final String accessToken;
     final String refreshToken;
@@ -94,15 +94,16 @@ public final class OAuth2CredentialFactoryImpl implements OAuth2CredentialFactor
         refreshToken = cred.getRefreshToken();
         logger.debug(MessageFormat.format("Created new credential for client {0} in data store {1}", authContext.getClientId(), datastore.getId()));
       }
-      gCred = new GoogleCredential.Builder()
+      final GoogleCredential.Builder builder = new GoogleCredential.Builder()
           .setClientSecrets(gClientSecrets).setJsonFactory(new JacksonFactory())
-          .setTransport(new NetHttpTransport()).build();
-      gCred.setAccessToken(accessToken);
-      gCred.setRefreshToken(refreshToken);
-      logger.debug(MessageFormat.format("Found credential {0} using {1}", gCred.getRefreshToken(), authContext.toString()));
+          .setTransport(new NetHttpTransport());
+      credential = new InHouseGoogleCredential(builder, backOff);
+      credential.setAccessToken(accessToken);
+      credential.setRefreshToken(refreshToken);
+      logger.debug(MessageFormat.format("Found credential {0} using {1}", credential.getRefreshToken(), authContext.toString()));
     } finally {
       localReceiver.stop();
     }
-    return gCred;
+    return credential;
   }
 }
