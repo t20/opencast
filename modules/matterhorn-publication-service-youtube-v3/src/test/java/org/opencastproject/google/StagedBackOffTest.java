@@ -159,7 +159,7 @@ public class StagedBackOffTest {
    * @throws IOException
    */
   @Test
-  public void testWCT4614() throws IOException {
+  public void testYouTubeRetryAlgorithm() throws IOException {
     final long firstFailure = 0;
     final long secondFailure = 15 * MINUTES_IN_MILLISECONDS;
     final long thirdFailure =  60 * MINUTES_IN_MILLISECONDS;
@@ -230,7 +230,7 @@ public class StagedBackOffTest {
     for (final StagedBackOffPolicy policy : backOff.getPolicies()) {
       final String description = policy.getDescription();
       assertTrue(description.contains(" failure"));
-      // TODO: the internals of StagedBackOff maintain policies list in reverse order
+      // The internals of StagedBackOff maintain policies list in reverse order
       final long retryStageDelay = policy.getRetryStageDelay();
       final long retryWaitTime = policy.getRetryWaitTime();
       final int retryRepetitions = policy.getRetryRepetitions();

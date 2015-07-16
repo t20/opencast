@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TODO: Please read class-level javadoc of {@link org.opencastproject.google.youtube.GoogleServicesFactory}
+ * @see GoogleServicesFactory
  *
  * @author John Crossman
  */

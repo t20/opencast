@@ -33,8 +33,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 
 /**
- * TODO: Please read class-level javadoc of {@link org.opencastproject.google.youtube.GoogleServicesFactory}
- *
+ * @see GoogleServicesFactory
  * @author John Crossman
  */
 public class GoogleHttpRequest extends LowLevelHttpRequest {

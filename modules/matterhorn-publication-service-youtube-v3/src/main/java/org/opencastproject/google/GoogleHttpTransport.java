@@ -31,7 +31,7 @@ import java.net.URLConnection;
 import java.util.Arrays;
 
 /**
- * TODO: Please read class-level javadoc of {@link org.opencastproject.google.youtube.GoogleServicesFactory}
+ * @see GoogleServicesFactory
  *
  * @author John Crossman
  */
